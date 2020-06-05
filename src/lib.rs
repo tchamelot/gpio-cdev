@@ -89,6 +89,7 @@ extern crate bitflags;
 extern crate libc;
 #[macro_use]
 extern crate nix;
+extern crate mio;
 
 use std::cmp::min;
 use std::ffi::CStr;
@@ -100,6 +101,8 @@ use std::path::{Path, PathBuf};
 use std::ptr;
 use std::slice;
 use std::sync::Arc;
+
+use mio::{event, unix::SourceFd, Interest, Registry, Token};
 
 pub mod errors;
 mod ffi;
@@ -869,7 +872,6 @@ pub enum EventType {
 ///
 /// [`struct gpioevent_data`]: https://elixir.bootlin.com/linux/v4.9.127/source/include/uapi/linux/gpio.h#L142
 pub struct LineEvent(ffi::gpioevent_data);
-
 impl std::fmt::Debug for LineEvent {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
@@ -962,6 +964,30 @@ impl LineEventHandle {
     /// Get the Line information associated with this handle.
     pub fn line(&self) -> &Line {
         &self.line
+    }
+}
+
+impl event::Source for LineEventHandle {
+    fn register(
+        &mut self,
+        registry: &Registry,
+        token: Token,
+        interests: Interest,
+    ) -> std::io::Result<()> {
+        SourceFd(&self.file.as_raw_fd()).register(registry, token, interests)
+    }
+
+    fn reregister(
+        &mut self,
+        registry: &Registry,
+        token: Token,
+        interests: Interest,
+    ) -> std::io::Result<()> {
+        SourceFd(&self.file.as_raw_fd()).reregister(registry, token, interests)
+    }
+
+    fn deregister(&mut self, registry: &Registry) -> std::io::Result<()> {
+        SourceFd(&self.file.as_raw_fd()).deregister(registry)
     }
 }
 
